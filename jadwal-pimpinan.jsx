@@ -22,9 +22,21 @@ const WF = {
   disetujui:         { label:"Disetujui ✓",         color:"#065f46", bg:"#d1fae5" },
   ditolak:           { label:"Ditolak",             color:"#991b1b", bg:"#fee2e2" },
 };
-const PAKAIAN = ["PDH","Batik Korpri","Jas","PSL","PDU","Bebas Rapi"];
+const PAKAIAN = ["PDH","PDH Batik Tarakan","Batik Lengan Panjang","PSL","PSR","PSH","PDUB","Pakaian Lapangan","Pakaian Olahraga","Bebas Rapi"];
 const JENIS   = ["Menghadiri","Sambutan","Pengarahan"];
 const PEJABAT = ["Sekda","Asisten Pemerintahan dan Kesra","Asisten Perekonomian dan Pembangunan","Asisten Administrasi Umum"];
+
+// ─── USER ACCOUNTS ────────────────────────────────────────────────────────────
+const USERS = [
+  { username:"walikota",      password:"WK@2025",      role:"walikota",      nama:"Wali Kota Tarakan",                      jabatan:"Wali Kota Tarakan" },
+  { username:"wakilwalikota", password:"WWK@2025",     role:"wakilwalikota", nama:"Wakil Wali Kota Tarakan",                jabatan:"Wakil Wali Kota Tarakan" },
+  { username:"ajudan",        password:"Ajudan@2025",  role:"ajudan",        nama:"Ajudan Pimpinan",                        jabatan:"Ajudan" },
+  { username:"timkom",        password:"Timkom@2025",  role:"timkom",        nama:"Tim Komunikasi & Dokumentasi",           jabatan:"Tim Komunikasi & Dokumentasi Pimpinan" },
+  { username:"staf",          password:"Staf@2025",    role:"staf",          nama:"Staf Protokol",                          jabatan:"Staf Protokol" },
+  { username:"kasubbag",      password:"Ksbg@2025",    role:"kasubbag",      nama:"Kasubbag Protokol",                      jabatan:"Kasubbag Protokol" },
+  { username:"kabag",         password:"Kabag@2025",   role:"kabag",         nama:"Kabag Protokol & Komunikasi",            jabatan:"Kepala Bagian Protokol & Komunikasi Pimpinan" },
+];
+
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 const HARI_ID = ["Minggu","Senin","Selasa","Rabu","Kamis","Jumat","Sabtu"];
@@ -53,6 +65,7 @@ function makeICS(ev){
     ["BEGIN:VCALENDAR","VERSION:2.0","BEGIN:VEVENT",`UID:ev${ev.id}@protokol`,
      `DTSTART:${ds}`,`DTEND:${de}`,`SUMMARY:${ev.namaAcara}`,
      `DESCRIPTION:${ev.penyelenggara}\\nPakaian: ${ev.pakaian}`,
+     ...(ev.lokasi?[`LOCATION:${ev.lokasi}`]:[]),
      "END:VEVENT","END:VCALENDAR"].join("\r\n"));
 }
 
@@ -60,23 +73,23 @@ function makeICS(ev){
 const T=todayStr(), TMR=tomorrowStr();
 const mkEv=(o)=>({alur:"disetujui",catatanTolak:"",statusWK:null,statusWWK:null,
   perwakilanWK:"",perwakilanWWK:"",delegasiKeWWK:false,sambutanFile:null,sambutanNama:"",
-  catatanPimpinan:"",tersembunyi:false,alurHapus:null,...o});
+  catatanPimpinan:"",tersembunyi:false,alurHapus:null,lokasi:"",...o});
 const seed=[
   mkEv({id:1,tanggal:T,jam:"09:00",namaAcara:"Rapat Koordinasi Infrastruktur",penyelenggara:"Dinas PUPR",
-    kontak:"Budi – 0812-3456-7890",buktiUndangan:"No.045/PUPR/2025",pakaian:"PDH",
+    kontak:"Budi – 0812-3456-7890",buktiUndangan:"No.045/PUPR/2025",pakaian:"PDH",lokasi:"Ruang Rapat Lt.3 Balaikota Tarakan",
     jenisKegiatan:"Sambutan",catatan:"Ruang Rapat Lt.3 Balaikota",untukPimpinan:["walikota","wakilwalikota"]}),
   mkEv({id:2,tanggal:T,jam:"14:00",namaAcara:"Peresmian Taman Kota Baru",penyelenggara:"Dinas LH",
-    kontak:"Sari – 0813-9876-5432",buktiUndangan:"No.023/DLH/2025",pakaian:"Batik Korpri",
+    kontak:"Sari – 0813-9876-5432",buktiUndangan:"No.023/DLH/2025",pakaian:"Batik Lengan Panjang",lokasi:"Taman Kota Baru Tarakan",
     jenisKegiatan:"Sambutan",catatan:"Outdoor, bawa payung.",untukPimpinan:["walikota"],statusWK:"hadir"}),
   mkEv({id:3,tanggal:TMR,jam:"10:00",namaAcara:"Audiensi DPRD – Pembahasan APBD",penyelenggara:"Sekretariat DPRD",
-    kontak:"Ahmad – 0811-2222-3333",buktiUndangan:"No.110/DPRD/2025",pakaian:"Jas",
+    kontak:"Ahmad – 0811-2222-3333",buktiUndangan:"No.110/DPRD/2025",pakaian:"PSH",lokasi:"Gedung DPRD Kota Tarakan",
     jenisKegiatan:"Pengarahan",catatan:"Bawa dokumen APBD",untukPimpinan:["walikota","wakilwalikota"],alur:"menunggu_kasubbag"}),
   mkEv({id:4,tanggal:TMR,jam:"08:00",namaAcara:"Apel Pagi Gabungan",penyelenggara:"Sekretariat Daerah",
-    kontak:"Hendra – 0815-1111-2222",buktiUndangan:"Memo No.5/2025",pakaian:"PDH",
+    kontak:"Hendra – 0815-1111-2222",buktiUndangan:"Memo No.5/2025",pakaian:"PDH",lokasi:"Halaman Kantor Wali Kota Tarakan",
     jenisKegiatan:"Menghadiri",catatan:"Halaman Kantor Walikota",untukPimpinan:["walikota"],alur:"menunggu_kabag"}),
 ];
 const emptyForm={tanggal:"",jam:"",namaAcara:"",penyelenggara:"",kontak:"",buktiUndangan:"",
-  pakaian:"PDH",jenisKegiatan:"Menghadiri",catatan:"",untukPimpinan:["walikota"]};
+  pakaian:"PDH",jenisKegiatan:"Menghadiri",catatan:"",lokasi:"",untukPimpinan:["walikota"]};
 
 // ─── SMALL COMPONENTS ─────────────────────────────────────────────────────────
 const StatusPill=({alur,hapus})=>{
@@ -357,6 +370,7 @@ function SummaryModal({events,onToggleHide,onClose}){
       lines.push(`*${i+1}. ${ev.namaAcara}*`);
       lines.push(`🕐 ${ev.jam} WIB`);
       lines.push(`🏢 ${ev.penyelenggara}`);
+      if(ev.lokasi)lines.push(`📍 ${ev.lokasi}`);
       lines.push(`👔 Pakaian: ${ev.pakaian}`);
       if(ev.catatan)lines.push(`📌 ${ev.catatan}`);
       lines.push("");
@@ -392,6 +406,7 @@ ${publicEvents.map((ev,i)=>`<div class="event">
   <div class="event-title">${i+1}. ${ev.namaAcara}</div>
   <div class="event-row">⏰ Pukul ${ev.jam} WIB</div>
   <div class="event-row">🏢 Penyelenggara: ${ev.penyelenggara}</div>
+  ${ev.lokasi?`<div class="event-row">📍 Lokasi: ${ev.lokasi}</div>`:""}
   <div class="event-row">👔 Pakaian: ${ev.pakaian}</div>
   ${ev.catatan?`<div class="event-row">📌 Catatan: ${ev.catatan}</div>`:""}
 </div>`).join("")}
@@ -551,7 +566,11 @@ function ReportingModal({events,onClose}){
 
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App(){
-  const[role,setRole]=useState(null);
+  const[user,setUser]=useState(null); // full user object from USERS
+  const role=user?.role||null;
+  const[loginForm,setLF]=useState({username:"",password:""});
+  const[loginErr,setLE]=useState("");
+  const[showPass,setShowPass]=useState(false);
   const[events,setEvents]=useState(seed);
   const[tab,setTab]=useState("jadwal");
   const[form,setForm]=useState(emptyForm);
@@ -561,10 +580,16 @@ export default function App(){
   const[showAI,setShowAI]=useState(false);
   const[showReport,setShowReport]=useState(false);
   const[showSummary,setShowSummary]=useState(false);
-  const[delegTarget,setDelegTarget]=useState(null); // {id,side}
+  const[delegTarget,setDelegTarget]=useState(null);
   const[expandedId,setExp]=useState(null);
   const[rejectTexts,setRT]=useState({});
   const[catatanInput,setCatatanInput]=useState({});
+
+  const doLogin=()=>{
+    const u=USERS.find(u=>u.username===loginForm.username.toLowerCase().trim()&&u.password===loginForm.password);
+    if(!u){setLE("Username atau password salah. Coba lagi.");return;}
+    setUser(u);setTab("jadwal");setLE("");
+  };
 
   const showT=(msg,type="ok")=>{setToast({msg,type});setTimeout(()=>setToast(null),2800);};
   const upd=(id,patch)=>setEvents(p=>p.map(e=>e.id===id?{...e,...patch}:e));
@@ -607,7 +632,7 @@ export default function App(){
     }else{
       const n={...form,id:Date.now(),alur:"draft",catatanTolak:"",statusWK:null,statusWWK:null,
         perwakilanWK:"",perwakilanWWK:"",delegasiKeWWK:false,sambutanFile:null,sambutanNama:"",
-        catatanPimpinan:"",tersembunyi:false,alurHapus:null};
+        catatanPimpinan:"",tersembunyi:false,alurHapus:null,lokasi:form.lokasi||""};
       setEvents(p=>[...p,n]);
       if(conflict)showT("⚠️ Potensi tabrakan jadwal di tanggal ini!","warn");
       else showT("Draft disimpan. Kirim ke Kasubbag Protokol.");
@@ -615,7 +640,7 @@ export default function App(){
     setForm(emptyForm);setTab("jadwal");
   };
 
-  const roleInfo=ALL_ROLES.find(r=>r.key===role);
+  const roleInfo=ALL_ROLES.find(r=>r.key===role)||{icon:"👤",label:""};
   const TH={
     walikota:{g:"linear-gradient(135deg,#0B2545,#1B4080)",a:"#C9A84C"},
     wakilwalikota:{g:"linear-gradient(135deg,#053f2a,#065f46)",a:"#6ee7b7"},
@@ -627,31 +652,73 @@ export default function App(){
   };
   const th=TH[role]||TH.staf;
 
-  if(!role)return(
-    <div style={{minHeight:"100vh",background:"linear-gradient(160deg,#0B2545 0%,#1B4080 55%,#0d3d2e 100%)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:20}}>
-      <style>{`*{box-sizing:border-box;-webkit-font-smoothing:antialiased}@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}@keyframes shimmer{0%{transform:translateX(-100%)}100%{transform:translateX(200%)}}input,select,textarea{font-size:16px!important;-webkit-appearance:none}a{-webkit-tap-highlight-color:transparent}`}</style>
-      <div style={{textAlign:"center",marginBottom:20,animation:"up 0.4s ease"}}>
-        <div style={{fontSize:44,marginBottom:7}}>🏛️</div>
-        <div style={{color:"#C9A84C",fontSize:10,letterSpacing:3,textTransform:"uppercase",marginBottom:3}}>Protokol & Komunikasi Pimpinan</div>
-        <h1 style={{color:"white",fontFamily:"Georgia,serif",fontSize:20,margin:0}}>Sistem Jadwal Pimpinan</h1>
-      </div>
-      <div style={{width:"100%",maxWidth:380,display:"flex",flexDirection:"column",gap:13}}>
-        {ROLE_GROUPS.map((g,gi)=>(
-          <div key={g.group}>
-            <div style={{color:"rgba(255,255,255,0.35)",fontSize:10,letterSpacing:2,textTransform:"uppercase",marginBottom:6,paddingLeft:3}}>{g.group}</div>
-            <div style={{display:"flex",flexDirection:"column",gap:7}}>
-              {g.roles.map((r,i)=>(
-                <button key={r.key} onClick={()=>{setRole(r.key);setTab("jadwal");}} style={{padding:"11px 14px",borderRadius:12,border:"1px solid rgba(255,255,255,0.11)",background:"rgba(255,255,255,0.07)",color:"white",cursor:"pointer",display:"flex",alignItems:"center",gap:11,textAlign:"left",backdropFilter:"blur(10px)",animation:`up ${0.3+(gi*5+i)*0.05}s ease`,WebkitTapHighlightColor:"transparent"}}
-                onTouchStart={e=>e.currentTarget.style.background="rgba(201,168,76,0.2)"}
-                onTouchEnd={e=>e.currentTarget.style.background="rgba(255,255,255,0.07)"}>
-                  <span style={{fontSize:18}}>{r.icon}</span>
-                  <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700}}>{r.label}</div><div style={{fontSize:10,opacity:.5,marginTop:1}}>{r.desc}</div></div>
-                  <span style={{opacity:.3,fontSize:13}}>›</span>
-                </button>
-              ))}
-            </div>
+  // ── LOGIN SCREEN ──
+  if(!user)return(
+    <div style={{minHeight:"100vh",background:"linear-gradient(160deg,#0B2545 0%,#1B4080 60%,#0d3d2e 100%)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24}}>
+      <style>{`*{box-sizing:border-box;-webkit-font-smoothing:antialiased;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","Helvetica Neue",Arial,sans-serif}@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}@keyframes shimmer{0%{transform:translateX(-100%)}100%{transform:translateX(200%)}}input,select,textarea{font-size:16px!important;-webkit-appearance:none;font-family:inherit}a{-webkit-tap-highlight-color:transparent}`}</style>
+      {/* Letterhead */}
+      <div style={{textAlign:"center",marginBottom:24,animation:"up 0.4s ease"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:14,marginBottom:12}}>
+          <div style={{width:60,height:60,borderRadius:"50%",background:"rgba(201,168,76,0.15)",border:"2px solid #C9A84C",display:"flex",alignItems:"center",justifyContent:"center",fontSize:30,flexShrink:0}}>🏛️</div>
+          <div style={{textAlign:"left"}}>
+            <div style={{color:"#C9A84C",fontSize:9,letterSpacing:2,textTransform:"uppercase",fontWeight:700}}>Pemerintah Kota Tarakan</div>
+            <div style={{color:"white",fontSize:15,fontWeight:700,lineHeight:1.3,letterSpacing:0.3}}>Bagian Protokol &</div>
+            <div style={{color:"white",fontSize:15,fontWeight:700,letterSpacing:0.3}}>Komunikasi Pimpinan</div>
           </div>
-        ))}
+        </div>
+        <div style={{width:"100%",maxWidth:340,height:1,background:"linear-gradient(90deg,transparent,#C9A84C,transparent)",margin:"0 auto 12px"}}/>
+        <div style={{color:"rgba(255,255,255,0.6)",fontSize:11}}>Sistem Informasi Jadwal Kegiatan Pimpinan</div>
+      </div>
+
+      {/* Login Card */}
+      <div style={{width:"100%",maxWidth:360,background:"rgba(255,255,255,0.07)",backdropFilter:"blur(16px)",borderRadius:18,padding:24,border:"1px solid rgba(255,255,255,0.13)",animation:"up 0.5s ease"}}>
+        <div style={{fontSize:13,fontWeight:700,color:"rgba(255,255,255,0.7)",marginBottom:16,textAlign:"center",letterSpacing:1}}>MASUK KE SISTEM</div>
+
+        <div style={{marginBottom:14}}>
+          <label style={{display:"block",fontSize:11,color:"rgba(255,255,255,0.55)",fontWeight:600,marginBottom:5,letterSpacing:0.5}}>USERNAME</label>
+          <input
+            type="text" value={loginForm.username}
+            onChange={e=>setLF(p=>({...p,username:e.target.value}))}
+            onKeyDown={e=>e.key==="Enter"&&doLogin()}
+            placeholder="Masukkan username"
+            autoCapitalize="none" autoCorrect="off"
+            style={{width:"100%",padding:"13px 14px",borderRadius:11,border:"1.5px solid rgba(255,255,255,0.2)",background:"rgba(255,255,255,0.1)",color:"white",fontSize:15,outline:"none"}}/>
+        </div>
+
+        <div style={{marginBottom:6}}>
+          <label style={{display:"block",fontSize:11,color:"rgba(255,255,255,0.55)",fontWeight:600,marginBottom:5,letterSpacing:0.5}}>PASSWORD</label>
+          <div style={{position:"relative"}}>
+            <input
+              type={showPass?"text":"password"} value={loginForm.password}
+              onChange={e=>setLF(p=>({...p,password:e.target.value}))}
+              onKeyDown={e=>e.key==="Enter"&&doLogin()}
+              placeholder="Masukkan password"
+              style={{width:"100%",padding:"13px 44px 13px 14px",borderRadius:11,border:"1.5px solid rgba(255,255,255,0.2)",background:"rgba(255,255,255,0.1)",color:"white",fontSize:15,outline:"none"}}/>
+            <button onClick={()=>setShowPass(p=>!p)} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:"rgba(255,255,255,0.5)",fontSize:16,padding:4}}>
+              {showPass?"🙈":"👁"}
+            </button>
+          </div>
+        </div>
+
+        {loginErr&&<div style={{background:"rgba(239,68,68,0.15)",border:"1px solid rgba(239,68,68,0.4)",borderRadius:9,padding:"9px 12px",marginBottom:12,fontSize:12,color:"#fca5a5",fontWeight:600,animation:"up 0.2s ease"}}>
+          ⚠️ {loginErr}
+        </div>}
+
+        <button onClick={doLogin} style={{width:"100%",padding:"14px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#C9A84C,#b8952e)",color:"#0B2545",cursor:"pointer",fontSize:14,fontWeight:700,marginTop:8,letterSpacing:0.5,boxShadow:"0 4px 16px rgba(201,168,76,0.35)",WebkitTapHighlightColor:"transparent"}}>
+          MASUK →
+        </button>
+
+        <div style={{marginTop:18,padding:"10px 12px",background:"rgba(255,255,255,0.05)",borderRadius:9,border:"1px solid rgba(255,255,255,0.08)"}}>
+          <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",marginBottom:5,fontWeight:600,letterSpacing:1}}>AKUN DEMO</div>
+          {USERS.map(u=><div key={u.username} style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"rgba(255,255,255,0.45)",padding:"2px 0",borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
+            <span>{u.jabatan}</span>
+            <span style={{color:"rgba(201,168,76,0.7)",fontFamily:"monospace"}}>{u.username} / {u.password}</span>
+          </div>)}
+        </div>
+      </div>
+
+      <div style={{color:"rgba(255,255,255,0.2)",fontSize:9,marginTop:18,letterSpacing:1,textAlign:"center"}}>
+        PROTOTYPE v1.0 · Bagian Protokol & Komunikasi Pimpinan<br/>Pemerintah Kota Tarakan
       </div>
     </div>
   );
@@ -665,7 +732,7 @@ export default function App(){
 
   return(
     <div style={{minHeight:"100vh",background:"#F0F2F5",maxWidth:430,margin:"0 auto"}}>
-      <style>{`*{box-sizing:border-box;-webkit-font-smoothing:antialiased}@keyframes up{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}@keyframes shimmer{0%{transform:translateX(-100%)}100%{transform:translateX(200%)}}input,select,textarea{font-size:16px!important;-webkit-appearance:none}a{-webkit-tap-highlight-color:transparent}::-webkit-scrollbar{display:none}`}</style>
+      <style>{`*{box-sizing:border-box;-webkit-font-smoothing:antialiased;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","Helvetica Neue",Arial,sans-serif}@keyframes up{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}@keyframes shimmer{0%{transform:translateX(-100%)}100%{transform:translateX(200%)}}input,select,textarea{font-size:16px!important;-webkit-appearance:none;font-family:inherit}a{-webkit-tap-highlight-color:transparent}::-webkit-scrollbar{display:none}`}</style>
       {toast&&<Toast msg={toast.msg} type={toast.type}/>}
       {showAI&&<AIModal onFill={d=>{setForm(p=>({...p,...d}));setShowAI(false);setTab("form");showT("✅ Form terisi dari AI. Periksa sebelum menyimpan.","warn");}} onClose={()=>setShowAI(false)}/>}
       {showReport&&<ReportingModal events={events} onClose={()=>setShowReport(false)}/>}
@@ -684,13 +751,13 @@ export default function App(){
         <div style={{padding:"11px 13px 9px",display:"flex",alignItems:"center",gap:9}}>
           <div style={{width:33,height:33,borderRadius:9,background:"rgba(255,255,255,0.1)",border:`1.5px solid ${th.a}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{roleInfo.icon}</div>
           <div style={{flex:1,minWidth:0}}>
-            <div style={{color:"rgba(255,255,255,0.5)",fontSize:8,letterSpacing:2,textTransform:"uppercase"}}>Masuk sebagai</div>
-            <div style={{color:"white",fontSize:13,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{roleInfo.label}</div>
+            <div style={{color:"white",fontSize:13,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user?.nama||roleInfo.label}</div>
+            <div style={{color:"rgba(255,255,255,0.5)",fontSize:9,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user?.jabatan||""}</div>
           </div>
           {pendingList.length>0&&<button onClick={goToPending} style={{background:"#ef4444",color:"white",borderRadius:20,padding:"4px 9px",fontSize:10,fontWeight:700,border:"none",cursor:"pointer",flexShrink:0}}>{pendingList.length} pending ›</button>}
-          {isLeader&&<button onClick={()=>setShowSummary(true)} style={{background:"rgba(255,255,255,0.12)",border:"none",borderRadius:8,color:"white",padding:"5px 8px",cursor:"pointer",fontSize:11,fontWeight:700,flexShrink:0}}>📢</button>}
-          {!isLeader&&<button onClick={()=>setShowReport(true)} style={{background:"rgba(255,255,255,0.12)",border:"none",borderRadius:8,color:"white",padding:"5px 8px",cursor:"pointer",fontSize:12,fontWeight:700,flexShrink:0}}>📊</button>}
-          <button onClick={()=>setRole(null)} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,color:"white",padding:"5px 9px",cursor:"pointer",fontSize:11,fontWeight:600,flexShrink:0}}>Keluar</button>
+          <button onClick={()=>setShowSummary(true)} style={{background:"rgba(255,255,255,0.12)",border:"none",borderRadius:8,color:"white",padding:"5px 8px",cursor:"pointer",fontSize:11,fontWeight:700,flexShrink:0}}>📢</button>
+          <button onClick={()=>setShowReport(true)} style={{background:"rgba(255,255,255,0.12)",border:"none",borderRadius:8,color:"white",padding:"5px 8px",cursor:"pointer",fontSize:12,fontWeight:700,flexShrink:0}}>📊</button>
+          <button onClick={()=>setUser(null)} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,color:"white",padding:"5px 9px",cursor:"pointer",fontSize:11,fontWeight:600,flexShrink:0}}>Keluar</button>
         </div>
         {tabItems.length>1&&<div style={{display:"flex",borderTop:"1px solid rgba(255,255,255,0.08)"}}>
           {tabItems.map(t2=><button key={t2.key} onClick={()=>{setTab(t2.key);if(t2.key==="form"){setForm(emptyForm);setEditId(null);}}} style={{flex:1,padding:"9px 0",border:"none",cursor:"pointer",background:"transparent",color:"white",fontSize:12,fontWeight:700,borderBottom:tab===t2.key?`2.5px solid ${th.a}`:"2.5px solid transparent",opacity:tab===t2.key?1:0.5,WebkitTapHighlightColor:"transparent"}}>{t2.icon} {t2.label}</button>)}
@@ -763,6 +830,19 @@ export default function App(){
           <div style={{marginBottom:10}}>
             <label style={{display:"block",fontSize:11,color:"#64748b",fontWeight:600,marginBottom:3}}>Catatan Penting</label>
             <textarea value={form.catatan} onChange={e=>setForm(p=>({...p,catatan:e.target.value}))} rows={2} style={{width:"100%",padding:"10px 12px",borderRadius:9,border:"1.5px solid #e2e8f0",color:"#1e293b",resize:"vertical",background:"white"}}/>
+          </div>
+          <div style={{marginBottom:10}}>
+            <label style={{display:"block",fontSize:11,color:"#64748b",fontWeight:600,marginBottom:3}}>📍 Lokasi Acara</label>
+            <div style={{display:"flex",gap:7}}>
+              <input type="text" value={form.lokasi||""} onChange={e=>setForm(p=>({...p,lokasi:e.target.value}))}
+                placeholder="Nama tempat / alamat lengkap"
+                style={{flex:1,padding:"10px 12px",borderRadius:9,border:"1.5px solid #e2e8f0",color:"#1e293b",background:"white"}}/>
+              {form.lokasi&&<a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(form.lokasi)}`} target="_blank" rel="noopener noreferrer"
+                style={{padding:"10px 11px",borderRadius:9,background:"#1a73e8",color:"white",textDecoration:"none",fontSize:13,fontWeight:700,display:"flex",alignItems:"center",gap:4,flexShrink:0,WebkitTapHighlightColor:"transparent"}}>
+                🗺
+              </a>}
+            </div>
+            {form.lokasi&&<div style={{marginTop:4,fontSize:10,color:"#64748b"}}>Tap 🗺 untuk lihat di Google Maps</div>}
           </div>
           <div style={{marginBottom:14}}>
             <label style={{display:"block",fontSize:11,color:"#64748b",fontWeight:600,marginBottom:5}}>Untuk Pimpinan</label>
@@ -843,6 +923,18 @@ export default function App(){
                     <div style={{fontSize:12,color:"#1e293b"}}>{f.v}</div></div>
                   </div>
                 ))}
+                {ev.lokasi&&<div style={{display:"flex",gap:8,padding:"7px 9px",background:"#f0f9ff",borderRadius:8,border:"1px solid #bae6fd",alignItems:"center"}}>
+                  <span style={{fontSize:12,flexShrink:0}}>📍</span>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:8,color:"#0284c7",fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:1}}>Lokasi</div>
+                    <div style={{fontSize:12,color:"#0c4a6e",fontWeight:600}}>{ev.lokasi}</div>
+                  </div>
+                  <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ev.lokasi)}`}
+                    target="_blank" rel="noopener noreferrer"
+                    style={{flexShrink:0,padding:"7px 10px",borderRadius:8,background:"#1a73e8",color:"white",textDecoration:"none",fontSize:11,fontWeight:700,display:"flex",alignItems:"center",gap:4,WebkitTapHighlightColor:"transparent"}}>
+                    🗺 Maps
+                  </a>
+                </div>}
                 {(ev.perwakilanWK||ev.perwakilanWWK||ev.delegasiKeWWK)&&<div style={{background:"#fef3c7",borderRadius:8,padding:"7px 9px",fontSize:11,color:"#92400e",fontWeight:600}}>
                   {ev.delegasiKeWWK&&!ev.perwakilanWK&&<div>⇄ WK → Wakil Wali Kota</div>}
                   {ev.perwakilanWK&&<div>⇄ WK → {ev.perwakilanWK}</div>}
