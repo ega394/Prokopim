@@ -565,6 +565,32 @@ function ReportingModal({events,onClose}){
 }
 
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
+const SUPA_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPA_KEY = import.meta.env.VITE_SUPABASE_KEY;
+
+async function loadFromSupabase() {
+  const res = await fetch(`${SUPA_URL}/rest/v1/jadwal?select=data`, {
+    headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}` }
+  });
+  const rows = await res.json();
+  return rows.map(r => r.data);
+}
+
+async function saveToSupabase(events) {
+  await fetch(`${SUPA_URL}/rest/v1/jadwal`, {
+    method: "DELETE",
+    headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`,
+      "Content-Type": "application/json" }
+  });
+  if (events.length === 0) return;
+  await fetch(`${SUPA_URL}/rest/v1/jadwal`, {
+    method: "POST",
+    headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`,
+      "Content-Type": "application/json", Prefer: "return=minimal" },
+    body: JSON.stringify(events.map(e => ({ id: e.id, data: e })))
+  });
+}
+
 export default function App(){
   const[user,setUser]=useState(null); // full user object from USERS
   const role=user?.role||null;
