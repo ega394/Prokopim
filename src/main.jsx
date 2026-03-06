@@ -1,16 +1,9 @@
-const [events, setEvents] = useState([]);
-const [dbReady, setDbReady] = useState(false);
+import React from 'react'
+import ReactDOM from 'react-dom/client'
+import JadwalPimpinan from './jadwal-pimpinan'
 
-useEffect(() => {
-  loadFromSupabase()
-    .then(data => {
-      setEvents(data.length > 0 ? data : seed);
-      setDbReady(true);
-    })
-    .catch(() => { setEvents(seed); setDbReady(true); });
-}, []);
-
-// Auto-save setiap kali events berubah
-useEffect(() => {
-  if (dbReady) saveToSupabase(events);
-}, [events]);
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
+    <JadwalPimpinan />
+  </React.StrictMode>
+)
