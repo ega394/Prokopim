@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 const ROLE_GROUPS = [
@@ -36,6 +36,75 @@ const USERS = [
   { username:"kasubbag",      password:"Ksbg@2025",    role:"kasubbag",      nama:"Kasubbag Protokol",                      jabatan:"Kasubbag Protokol" },
   { username:"kabag",         password:"Kabag@2025",   role:"kabag",         nama:"Kabag Protokol & Komunikasi",            jabatan:"Kepala Bagian Protokol & Komunikasi Pimpinan" },
 ];
+
+
+// ─── SUPABASE ─────────────────────────────────────────────────────────────────
+const SUPA_URL = import.meta.env.VITE_SUPABASE_URL || "";
+const SUPA_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
+const SUPA_OK  = !!(SUPA_URL && SUPA_KEY);
+const H = () => ({
+  "Content-Type":"application/json",
+  apikey: SUPA_KEY,
+  Authorization: `Bearer ${SUPA_KEY}`,
+});
+
+// Strip base64 sambutan (too large for DB) — save URL after Storage upload
+const forDB = ev => {
+  const d = {...ev};
+  if (d.sambutanFile && d.sambutanFile.startsWith("data:")) {
+    d.sambutanFile = null; // base64 never goes to DB; only Storage URLs do
+  }
+  return d;
+};
+
+async function dbLoadAll() {
+  if (!SUPA_OK) return null;
+  const r = await fetch(`${SUPA_URL}/rest/v1/jadwal?select=data&order=id`, { headers: H() });
+  if (!r.ok) throw new Error(await r.text());
+  const rows = await r.json();
+  return rows.map(x => x.data);
+}
+
+async function dbUpsert(ev) {
+  if (!SUPA_OK) return;
+  const r = await fetch(`${SUPA_URL}/rest/v1/jadwal`, {
+    method: "POST",
+    headers: { ...H(), Prefer: "resolution=merge-duplicates" },
+    body: JSON.stringify({ id: ev.id, data: forDB(ev) }),
+  });
+  if (!r.ok) console.error("dbUpsert error:", await r.text());
+}
+
+async function dbDelete(id) {
+  if (!SUPA_OK) return;
+  const r = await fetch(`${SUPA_URL}/rest/v1/jadwal?id=eq.${id}`, {
+    method: "DELETE", headers: H(),
+  });
+  if (!r.ok) console.error("dbDelete error:", await r.text());
+}
+
+// Supabase Storage — bucket name: sambutan (must be public)
+async function storageUpload(evId, file) {
+  if (!SUPA_OK) return null;
+  const path = `${evId}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g,"_")}`;
+  const r = await fetch(`${SUPA_URL}/storage/v1/object/sambutan/${path}`, {
+    method: "POST",
+    headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`, "Content-Type": file.type },
+    body: file,
+  });
+  if (!r.ok) { console.error("Storage upload error:", await r.text()); return null; }
+  return `${SUPA_URL}/storage/v1/object/public/sambutan/${path}`;
+}
+
+async function storageDelete(sambutanFile) {
+  if (!SUPA_OK || !sambutanFile) return;
+  // Extract path from URL: .../public/sambutan/{path}
+  const match = sambutanFile.match(/\/object\/public\/sambutan\/(.+)$/);
+  if (!match) return;
+  await fetch(`${SUPA_URL}/storage/v1/object/sambutan/${match[1]}`, {
+    method: "DELETE", headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}` },
+  });
+}
 
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
@@ -151,8 +220,8 @@ function SambutanBlock({ev,canUpload,onUpload,onRemove}){
   const handleFile=f=>{
     if(!f)return;if(f.type!=="application/pdf"){alert("Hanya PDF.");return;}
     if(f.size>10*1024*1024){alert("Maks 10MB.");return;}
-    setL(true);const r=new FileReader();
-    r.onload=x=>{onUpload(x.target.result,f.name);setL(false);};r.readAsDataURL(f);
+    setL(true);
+    onUpload(f,f.name).finally(()=>setL(false));
   };
   if(ev.sambutanFile)return<>
     {view&&<PdfModal file={ev.sambutanFile} nama={ev.sambutanNama} onClose={()=>setV(false)}/>}
@@ -565,39 +634,15 @@ function ReportingModal({events,onClose}){
 }
 
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
-const SUPA_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPA_KEY = import.meta.env.VITE_SUPABASE_KEY;
-
-async function loadFromSupabase() {
-  const res = await fetch(`${SUPA_URL}/rest/v1/jadwal?select=data`, {
-    headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}` }
-  });
-  const rows = await res.json();
-  return rows.map(r => r.data);
-}
-
-async function saveToSupabase(events) {
-  await fetch(`${SUPA_URL}/rest/v1/jadwal`, {
-    method: "DELETE",
-    headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`,
-      "Content-Type": "application/json" }
-  });
-  if (events.length === 0) return;
-  await fetch(`${SUPA_URL}/rest/v1/jadwal`, {
-    method: "POST",
-    headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`,
-      "Content-Type": "application/json", Prefer: "return=minimal" },
-    body: JSON.stringify(events.map(e => ({ id: e.id, data: e })))
-  });
-}
-
 export default function App(){
-  const[user,setUser]=useState(null); // full user object from USERS
+  const[user,setUser]=useState(null);
   const role=user?.role||null;
   const[loginForm,setLF]=useState({username:"",password:""});
   const[loginErr,setLE]=useState("");
   const[showPass,setShowPass]=useState(false);
-  const[events,setEvents]=useState(seed);
+  const[events,setEvents]=useState([]);
+  const[dbReady,setDbReady]=useState(false);
+  const[dbError,setDbError]=useState("");
   const[tab,setTab]=useState("jadwal");
   const[form,setForm]=useState(emptyForm);
   const[editId,setEditId]=useState(null);
@@ -617,8 +662,52 @@ export default function App(){
     setUser(u);setTab("jadwal");setLE("");
   };
 
+  // ── Supabase sync on mount ──────────────────────────────────────────────────
+  useEffect(()=>{
+    if(SUPA_OK){
+      dbLoadAll()
+        .then(rows=>{ setEvents(rows&&rows.length>0?rows:seed); setDbReady(true); })
+        .catch(err=>{ console.error(err); setDbError(err.message); setEvents(seed); setDbReady(true); });
+    } else {
+      setEvents(seed); setDbReady(true);
+    }
+  },[]);
+
   const showT=(msg,type="ok")=>{setToast({msg,type});setTimeout(()=>setToast(null),2800);};
-  const upd=(id,patch)=>setEvents(p=>p.map(e=>e.id===id?{...e,...patch}:e));
+
+  // Sync helpers ───────────────────────────────────────────────────────────────
+  const updAndSync=useCallback((id,patch)=>{
+    setEvents(p=>{
+      const next=p.map(e=>e.id===id?{...e,...patch}:e);
+      const ev=next.find(e=>e.id===id);
+      if(ev) dbUpsert(ev).catch(console.error);
+      return next;
+    });
+  },[]);
+
+  const deleteAndSync=useCallback((id)=>{
+    setEvents(p=>{
+      const ev=p.find(e=>e.id===id);
+      if(ev?.sambutanFile&&!ev.sambutanFile.startsWith("data:")) storageDelete(ev.sambutanFile).catch(()=>{});
+      dbDelete(id).catch(console.error);
+      return p.filter(e=>e.id!==id);
+    });
+  },[]);
+
+  const upd=(id,patch)=>updAndSync(id,patch);
+
+  // Sambutan upload handler ────────────────────────────────────────────────────
+  const handleSambutanUpload=useCallback(async(evId,file,name)=>{
+    if(SUPA_OK){
+      const url=await storageUpload(evId,file);
+      if(url){ updAndSync(evId,{sambutanFile:url,sambutanNama:name}); return; }
+    }
+    // Fallback: base64 (local only, lost on refresh if no Supabase Storage)
+    const base64=await new Promise((res,rej)=>{
+      const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=rej;r.readAsDataURL(file);
+    });
+    updAndSync(evId,{sambutanFile:base64,sambutanNama:name});
+  },[updAndSync]);
   const hariForm=form.tanggal?getHari(form.tanggal):"";
 
   // Visibility
@@ -653,13 +742,19 @@ export default function App(){
     if(!form.namaAcara||!form.tanggal||!form.jam){showT("Nama acara, tanggal & jam wajib diisi.","error");return;}
     const conflict=hasConflict(events,{...form,id:editId||0,alur:"disetujui"});
     if(editId!==null){
-      setEvents(p=>p.map(e=>e.id===editId?{...e,...form}:e));
+      setEvents(p=>{
+        const next=p.map(e=>e.id===editId?{...e,...form}:e);
+        const updated=next.find(e=>e.id===editId);
+        if(updated) dbUpsert(updated).catch(console.error);
+        return next;
+      });
       showT("Jadwal diperbarui ✓");setEditId(null);
     }else{
       const n={...form,id:Date.now(),alur:"draft",catatanTolak:"",statusWK:null,statusWWK:null,
         perwakilanWK:"",perwakilanWWK:"",delegasiKeWWK:false,sambutanFile:null,sambutanNama:"",
         catatanPimpinan:"",tersembunyi:false,alurHapus:null,lokasi:form.lokasi||""};
       setEvents(p=>[...p,n]);
+      dbUpsert(n).catch(console.error);
       if(conflict)showT("⚠️ Potensi tabrakan jadwal di tanggal ini!","warn");
       else showT("Draft disimpan. Kirim ke Kasubbag Protokol.");
     }
@@ -749,6 +844,16 @@ export default function App(){
     </div>
   );
 
+  // DB loading screen
+  if(!dbReady)return(
+    <div style={{minHeight:"100vh",background:"linear-gradient(160deg,#0B2545 0%,#1B4080 60%,#0d3d2e 100%)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16}}>
+      <div style={{fontSize:36}}>⚙️</div>
+      <div style={{color:"white",fontSize:15,fontWeight:700}}>Memuat data...</div>
+      {dbError&&<div style={{color:"#fca5a5",fontSize:12,maxWidth:280,textAlign:"center"}}>⚠️ {dbError}<br/>Menggunakan data lokal.</div>}
+      {!SUPA_OK&&<div style={{color:"rgba(255,255,255,0.4)",fontSize:11,maxWidth:280,textAlign:"center"}}>Supabase belum dikonfigurasi. Tambahkan VITE_SUPABASE_URL & VITE_SUPABASE_ANON_KEY di Vercel.</div>}
+    </div>
+  );
+
   const listEvents=getVisible();
   const showForm=tab==="form"&&role==="staf";
   const tabItems=role==="staf"?[{key:"jadwal",icon:"📅",label:"Jadwal"},{key:"form",icon:"✏️",label:"Input"}]:
@@ -783,6 +888,7 @@ export default function App(){
           {pendingList.length>0&&<button onClick={goToPending} style={{background:"#ef4444",color:"white",borderRadius:20,padding:"4px 9px",fontSize:10,fontWeight:700,border:"none",cursor:"pointer",flexShrink:0}}>{pendingList.length} pending ›</button>}
           <button onClick={()=>setShowSummary(true)} style={{background:"rgba(255,255,255,0.12)",border:"none",borderRadius:8,color:"white",padding:"5px 8px",cursor:"pointer",fontSize:11,fontWeight:700,flexShrink:0}}>📢</button>
           <button onClick={()=>setShowReport(true)} style={{background:"rgba(255,255,255,0.12)",border:"none",borderRadius:8,color:"white",padding:"5px 8px",cursor:"pointer",fontSize:12,fontWeight:700,flexShrink:0}}>📊</button>
+          <div title={SUPA_OK?"Terhubung ke Supabase":"Mode lokal (data tidak tersimpan)"} style={{width:8,height:8,borderRadius:"50%",background:SUPA_OK?"#34d399":"#f87171",flexShrink:0,marginRight:-4}}/>
           <button onClick={()=>setUser(null)} style={{background:"rgba(255,255,255,0.1)",border:"none",borderRadius:8,color:"white",padding:"5px 9px",cursor:"pointer",fontSize:11,fontWeight:600,flexShrink:0}}>Keluar</button>
         </div>
         {tabItems.length>1&&<div style={{display:"flex",borderTop:"1px solid rgba(255,255,255,0.08)"}}>
@@ -972,8 +1078,8 @@ export default function App(){
               {(ev.jenisKegiatan==="Sambutan"||ev.sambutanFile||role==="timkom")&&
                 <div style={{marginBottom:11}}>
                   <SambutanBlock ev={ev} canUpload={role==="timkom"}
-                    onUpload={(f,n)=>{upd(ev.id,{sambutanFile:f,sambutanNama:n});showT("📄 Sambutan diupload ✓");}}
-                    onRemove={()=>upd(ev.id,{sambutanFile:null,sambutanNama:""})}/>
+                    onUpload={(file,name)=>handleSambutanUpload(ev.id,file,name).then(()=>showT("📄 Sambutan diupload ✓"))}
+                    onRemove={()=>{if(ev.sambutanFile&&!ev.sambutanFile.startsWith("data:"))storageDelete(ev.sambutanFile).catch(()=>{});updAndSync(ev.id,{sambutanFile:null,sambutanNama:""});}}/>
                 </div>}
 
               {/* Catatan Pimpinan (leader can write, all can read — already shown in header) */}
@@ -1038,7 +1144,7 @@ export default function App(){
                 {ev.alurHapus==="menunggu_kabag"&&<>
                   <div style={{background:"#fff1f2",borderRadius:9,padding:"8px 10px",fontSize:12,color:"#e11d48",marginBottom:4}}>⚠️ Permintaan penghapusan dari Staf (sudah disetujui Kasubbag)</div>
                   <div style={{display:"flex",gap:7}}>
-                    <button onClick={()=>{setEvents(p=>p.filter(e=>e.id!==ev.id));setExp(null);showT("Jadwal dihapus oleh Kabag");}} style={{flex:1,padding:"9px",borderRadius:10,border:"none",background:"#e11d48",color:"white",cursor:"pointer",fontSize:11,fontWeight:700}}>🗑 Hapus Permanen</button>
+                    <button onClick={()=>{deleteAndSync(ev.id);setExp(null);showT("Jadwal dihapus oleh Kabag");}} style={{flex:1,padding:"9px",borderRadius:10,border:"none",background:"#e11d48",color:"white",cursor:"pointer",fontSize:11,fontWeight:700}}>🗑 Hapus Permanen</button>
                     <button onClick={()=>{upd(ev.id,{alurHapus:null});showT("Permintaan hapus ditolak Kabag");}} style={{flex:1,padding:"9px",borderRadius:10,border:"1.5px solid #94a3b8",background:"white",color:"#334155",cursor:"pointer",fontSize:11,fontWeight:700}}>✗ Tolak Hapus</button>
                   </div>
                 </>}
